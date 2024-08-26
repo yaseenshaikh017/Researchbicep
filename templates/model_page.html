@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ model_name }} Tracker</title>
+    <style>
+        .container {
+            display: flex;
+            justify-content: space-around;
+        }
+        .video-feed, .graph-feed {
+            width: 45%;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>{{ model_name }} Tracker</h1>
+    <div class="container">
+        <div class="video-feed">
+            <img src="{{ url_for('bicepcurl_app.video_feed_bicepcurl') }}" width="640" height="480">
+        </div>
+        <div class="graph-feed">
+            <h3>Real-Time Graph</h3>
+            <canvas id="realtimeChart"></canvas>
+        </div>
+    </div>
+    <h2>Reps Counter: <span id="counter">0</span></h2>
+    <h2>High Score: <span id="high_score">0</span></h2>
+    <h2>Stage: <span id="stage">None</span></h2>
+    <button onclick="resetCounter()">Reset Counter</button>
+    <script>
+        const ctx = document.getElementById('realtimeChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Bicep Curl Angle',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    data: []
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time (s)'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Angle (degrees)'
+                        },
+                        min: 0,
+                        max: 180
+                    }
+                }
+            }
+        });
+
+        function updateChartData() {
+            fetch('/update_graph_data')
+                .then(response => response.json())
+                .then(data => {
+                    chart.data.labels = data.timestamps;
+                    chart.data.datasets[0].data = data.angles;
+                    chart.update();
+                });
+        }
+
+        function updateData() {
+            fetch('/update_data_bicepcurl')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('counter').innerText = data.counter;
+                    document.getElementById('high_score').innerText = data.high_score;
+                    document.getElementById('stage').innerText = data.stage;
+                });
+            updateChartData();
+        }
+
+        function resetCounter() {
+            fetch('/reset_counter_bicepcurl', { method: 'POST' })
+                .then(response => {
+                    if (response.ok) {
+                        document.getElementById('counter').innerText = 0;
+                        document.getElementById('stage').innerText = 'None';
+                        chart.data.labels = [];
+                        chart.data.datasets[0].data = [];
+                        chart.update();
+                    }
+                });
+        }
+
+        setInterval(updateData, 1000);  // Update data every second
+    </script>
+</body>
+</html>
