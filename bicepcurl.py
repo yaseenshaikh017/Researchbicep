@@ -3,6 +3,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import time
+from pykalman import KalmanFilter
 
 # Create Flask app
 app = Flask(__name__)
@@ -22,6 +23,9 @@ high_score = 0
 angles_over_time = []
 timestamps = []
 
+# Initialize Kalman Filter for smoothing angles
+kf = KalmanFilter(initial_state_mean=0, n_dim_obs=1)
+
 def calculate_angle(a, b, c):
     a = np.array(a)  # First point
     b = np.array(b)  # Mid point
@@ -35,17 +39,16 @@ def calculate_angle(a, b, c):
 
     return angle
 
-def smooth_angles(angles, window_size=5):
-    if len(angles) < window_size:
+def smooth_angles(angles):
+    if len(angles) < 2:
         return angles
-    return np.convolve(angles, np.ones(window_size)/window_size, mode='valid')
+    measurements = np.array(angles).reshape(-1, 1)
+    smoothed_data, _ = kf.smooth(measurements)
+    return smoothed_data.flatten().tolist()
 
 def gen_frames():
     global counter, stage, high_score, angles_over_time, timestamps
     cap = cv2.VideoCapture(0)  # Open the camera
-    previous_angle = None
-    hold_start_time = None  # To track the hold time at the "up" position
-    frames_in_position = 0  # To ensure the user holds the position
     start_time = time.time()
 
     while True:
@@ -77,47 +80,29 @@ def gen_frames():
                 # Calculate angles
                 angle = calculate_angle(shoulder, elbow, wrist)
 
-                # Smooth angle using exponential moving average (optional)
-                if previous_angle is not None:
-                    smoothed_angle = 0.8 * previous_angle + 0.2 * angle
+                # Smooth angle using Kalman Filter
+                angles_over_time.append(angle)
+                if len(angles_over_time) > 1:
+                    smoothed_angles_list = smooth_angles(angles_over_time)
+                    smoothed_angle = smoothed_angles_list[-1]
                 else:
                     smoothed_angle = angle
 
-                previous_angle = smoothed_angle
-
                 # Save the angle and timestamp
                 current_time = time.time() - start_time
-                angles_over_time.append(smoothed_angle)
                 timestamps.append(current_time)
 
-                # Calculate the horizontal distance between the shoulder and wrist to ensure proper arm alignment
-                shoulder_wrist_dist = np.abs(shoulder[0] - wrist[0])
-
-                # Check for arm alignment, velocity, and angle thresholds
-                if shoulder_wrist_dist > 0.1 and smoothed_angle > 160:
-                    stage = "down"
-                    hold_start_time = None  # Reset hold time when the arm is fully extended
-                    frames_in_position = 0  # Reset frame counter
-
-                if shoulder_wrist_dist > 0.1 and smoothed_angle < 40 and stage == 'down':
-                    stage = "up"
-                    if hold_start_time is None:
-                        hold_start_time = time.time()
-
-                    # Check if the user held the "up" position for at least 0.5 seconds and maintain the position for a few frames
-                    hold_time = time.time() - hold_start_time
-                    frames_in_position += 1
-
-                    if hold_time > 0.5 and frames_in_position > 5:  # Ensuring the user holds the position for at least 5 frames
+                # Rep counting logic
+                if smoothed_angle > 160:  # Arm fully extended
+                    if stage == "up":
                         counter += 1
-                        stage = "counted"  # Change stage to a new value to prevent multiple increments
-                        frames_in_position = 0  # Reset frame counter
+                        stage = "down"  # Reset to down stage after a complete rep
                         if counter > high_score:
                             high_score = counter
 
-                # Reset the stage back to "down" only when the arm is fully extended again
-                if shoulder_wrist_dist > 0.1 and smoothed_angle > 160 and stage == "counted":
-                    stage = "down"
+                if smoothed_angle < 40:  # Arm fully contracted
+                    if stage == "down":
+                        stage = "up"  # Move to up stage
 
             except Exception as e:
                 print(f"Error: {e}")
@@ -142,7 +127,7 @@ def video_feed_bicepcurl():
 def update_graph_data():
     global angles_over_time, timestamps
     smoothed_angles = smooth_angles(angles_over_time)
-    return jsonify(angles=smoothed_angles.tolist(), timestamps=timestamps[-len(smoothed_angles):])
+    return jsonify(angles=smoothed_angles, timestamps=timestamps[-len(smoothed_angles):])
 
 @bicepcurl_app.route('/update_data_bicepcurl')
 def update_data_bicepcurl():
