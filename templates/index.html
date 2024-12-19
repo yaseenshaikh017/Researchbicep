@@ -8,7 +8,17 @@
 <body>
     <h1>Bicep Curl Tracker</h1>
     <a href="/bicepcurl">Start Bicep Curl Detection</a><br><br>
-    <a href="/reset">Reset Counter</a><br><br>
-    <a href="/plot_graph">Plot Graph</a>
+    <a href="/reset_counter_bicepcurl" onclick="resetCounter(event)">Reset Counter</a>
 </body>
+<script>
+    function resetCounter(event) {
+        event.preventDefault();
+        fetch('/reset_counter_bicepcurl', { method: 'POST' })
+            .then(response => {
+                if (response.ok) {
+                    alert('Counter has been reset!');
+                }
+            });
+    }
+</script>
 </html>

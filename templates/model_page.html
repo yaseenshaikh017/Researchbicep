@@ -3,77 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ model_name }} Tracker</title>
-    <style>
-        .container {
-            display: flex;
-            justify-content: space-around;
-        }
-        .video-feed, .graph-feed {
-            width: 45%;
-        }
-    </style>
+    <title>Bicep Curl Tracker</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <h1>{{ model_name }} Tracker</h1>
-    <div class="container">
-        <div class="video-feed">
-            <img src="{{ url_for('bicepcurl_app.video_feed_bicepcurl') }}" width="640" height="480">
-        </div>
-        <div class="graph-feed">
-            <h3>Real-Time Graph</h3>
-            <canvas id="realtimeChart"></canvas>
-        </div>
+    <h1>Bicep Curl Tracker</h1>
+
+    <div>
+        <img src="{{ url_for('bicepcurl_app.video_feed_bicepcurl') }}" width="640" height="480">
     </div>
-    <h2>Reps Counter: <span id="counter">0</span></h2>
-    <h2>High Score: <span id="high_score">0</span></h2>
-    <h2>Stage: <span id="stage">None</span></h2>
-    <button onclick="resetCounter()">Reset Counter</button>
+
+    <div>
+        <h3>Reps Counter: <span id="counter">0</span></h3>
+        <h3>High Score: <span id="high_score">0</span></h3>
+        <h3>Stage: <span id="stage">down</span></h3>
+        <button onclick="resetCounter()">Reset Counter</button>
+    </div>
+
+    <div>
+        <h3>Real-Time Comparison of Filters</h3>
+        <canvas id="realtimeChart"></canvas>
+    </div>
+
+    <div>
+        <h3>Benchmarking Metrics</h3>
+        <table border="1">
+            <tr>
+                <th>Filter</th>
+                <th>RMSE</th>
+                <th>SNR (dB)</th>
+                <th>Latency (s)</th>
+            </tr>
+            <tr>
+                <td>Kalman Filter</td>
+                <td id="kalman-rmse">N/A</td>
+                <td id="kalman-snr">N/A</td>
+                <td id="kalman-latency">N/A</td>
+            </tr>
+            <tr>
+                <td>Savitzky-Golay Filter</td>
+                <td id="savgol-rmse">N/A</td>
+                <td id="savgol-snr">N/A</td>
+                <td id="savgol-latency">N/A</td>
+            </tr>
+            <tr>
+                <td>Butterworth Filter</td>
+                <td id="butterworth-rmse">N/A</td>
+                <td id="butterworth-snr">N/A</td>
+                <td id="butterworth-latency">N/A</td>
+            </tr>
+        </table>
+    </div>
+
     <script>
         const ctx = document.getElementById('realtimeChart').getContext('2d');
         const chart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: [],
-                datasets: [{
-                    label: 'Bicep Curl Angle',
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    data: []
-                }]
+                datasets: [
+                    { label: 'Kalman Filter', borderColor: 'blue', data: [], fill: false },
+                    { label: 'Savitzky-Golay Filter', borderColor: 'green', data: [], fill: false },
+                    { label: 'Butterworth Filter', borderColor: 'red', data: [], fill: false },
+                ]
             },
             options: {
+                responsive: true,
                 scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Time (s)'
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'Angle (degrees)'
-                        },
-                        min: 0,
-                        max: 180
-                    }
+                    x: { title: { display: true, text: 'Time (s)' } },
+                    y: { title: { display: true, text: 'Angle (degrees)' }, min: 0, max: 180 }
                 }
             }
         });
 
-        function updateChartData() {
+        function updateData() {
             fetch('/update_graph_data')
                 .then(response => response.json())
                 .then(data => {
                     chart.data.labels = data.timestamps;
-                    chart.data.datasets[0].data = data.angles;
+                    chart.data.datasets[0].data = data.kalman;
+                    chart.data.datasets[1].data = data.savgol;
+                    chart.data.datasets[2].data = data.butterworth;
                     chart.update();
                 });
-        }
 
-        function updateData() {
             fetch('/update_data_bicepcurl')
                 .then(response => response.json())
                 .then(data => {
@@ -81,24 +94,38 @@
                     document.getElementById('high_score').innerText = data.high_score;
                     document.getElementById('stage').innerText = data.stage;
                 });
-            updateChartData();
+
+            fetch('/benchmark_metrics')
+                .then(response => response.json())
+                .then(data => {
+                    const metrics = data.metrics;
+                    document.getElementById('kalman-rmse').innerText = metrics['Kalman Filter'].RMSE.toFixed(3);
+                    document.getElementById('kalman-snr').innerText = metrics['Kalman Filter'].SNR.toFixed(2);
+                    document.getElementById('kalman-latency').innerText = metrics['Kalman Filter'].Latency.toFixed(3);
+                    
+                    document.getElementById('savgol-rmse').innerText = metrics['Savitzky-Golay Filter'].RMSE.toFixed(3);
+                    document.getElementById('savgol-snr').innerText = metrics['Savitzky-Golay Filter'].SNR.toFixed(2);
+                    document.getElementById('savgol-latency').innerText = metrics['Savitzky-Golay Filter'].Latency.toFixed(3);
+                    
+                    document.getElementById('butterworth-rmse').innerText = metrics['Butterworth Filter'].RMSE.toFixed(3);
+                    document.getElementById('butterworth-snr').innerText = metrics['Butterworth Filter'].SNR.toFixed(2);
+                    document.getElementById('butterworth-latency').innerText = metrics['Butterworth Filter'].Latency.toFixed(3);
+                });
         }
 
         function resetCounter() {
             fetch('/reset_counter_bicepcurl', { method: 'POST' })
-                .then(response => {
-                    if (response.ok) {
-                        document.getElementById('counter').innerText = 0;
-                        document.getElementById('stage').innerText = 'None';
-                        chart.data.labels = [];
-                        chart.data.datasets[0].data = [];
-                        chart.update();
-                        alert('Counter reset successfully!');
-                    }
+                .then(() => {
+                    document.getElementById('counter').innerText = 0;
+                    document.getElementById('high_score').innerText = 0;
+                    document.getElementById('stage').innerText = "down";
+                    chart.data.labels = [];
+                    chart.data.datasets.forEach(dataset => dataset.data = []);
+                    chart.update();
                 });
         }
 
-        setInterval(updateData, 1000);  // Update data every second
+        setInterval(updateData, 1000);
     </script>
 </body>
 </html>
