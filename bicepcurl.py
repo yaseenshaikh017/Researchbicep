@@ -38,24 +38,32 @@ def calculate_angle(a, b, c):
     angle = np.abs(radians * 180.0 / np.pi)
     return 360 - angle if angle > 180 else angle
 
-# Smoothing filters
+# Smoothing filters with latency calculations
 def smooth_angles_kalman(angles):
+    start_time = time.time()
     if len(angles) < 2:
-        return angles
+        return angles, 0.0
     measurements = np.array(angles).reshape(-1, 1)
     smoothed_data, _ = kf.smooth(measurements)
-    return smoothed_data.flatten().tolist()
+    latency = time.time() - start_time
+    return smoothed_data.flatten().tolist(), latency
 
 def smooth_angles_savgol(angles, window_size=9, polyorder=3):
+    start_time = time.time()
     if len(angles) < window_size:
-        return angles
-    return savgol_filter(angles, window_size, polyorder).tolist()
+        return angles, 0.0
+    smoothed_data = savgol_filter(angles, window_size, polyorder).tolist()
+    latency = time.time() - start_time
+    return smoothed_data, latency
 
 def smooth_angles_butterworth(angles, cutoff=0.1, fs=30, order=4):
+    start_time = time.time()
     if len(angles) < 2:
-        return angles
+        return angles, 0.0
     b, a = butter(order, cutoff, btype="low", fs=fs)
-    return filtfilt(b, a, angles).tolist()
+    smoothed_data = filtfilt(b, a, angles).tolist()
+    latency = time.time() - start_time
+    return smoothed_data, latency
 
 # Benchmark metrics
 def calculate_rmse(raw, filtered):
@@ -109,7 +117,7 @@ def gen_frames():
                 angles_over_time.append(angle)
                 timestamps.append(time.time() - start_time)
 
-                smoothed_kalman = smooth_angles_kalman(angles_over_time)
+                smoothed_kalman, _ = smooth_angles_kalman(angles_over_time)
 
                 # Rep counting logic
                 if smoothed_kalman[-1] > 160:
@@ -141,9 +149,9 @@ def video_feed_bicepcurl():
 @bicepcurl_app.route("/update_graph_data")
 def update_graph_data():
     global angles_over_time, timestamps
-    kalman_data = smooth_angles_kalman(angles_over_time)
-    savgol_data = smooth_angles_savgol(angles_over_time)
-    butterworth_data = smooth_angles_butterworth(angles_over_time)
+    kalman_data, _ = smooth_angles_kalman(angles_over_time)
+    savgol_data, _ = smooth_angles_savgol(angles_over_time)
+    butterworth_data, _ = smooth_angles_butterworth(angles_over_time)
     return jsonify(
         kalman=kalman_data,
         savgol=savgol_data,
@@ -155,27 +163,34 @@ def update_graph_data():
 def benchmark_metrics():
     global angles_over_time
     if len(angles_over_time) < 10:  # Ensure there are enough data points
-        return jsonify(error="Not enough data points to calculate metrics.")
-    kalman_data = smooth_angles_kalman(angles_over_time)
-    savgol_data = smooth_angles_savgol(angles_over_time)
-    butterworth_data = smooth_angles_butterworth(angles_over_time)
+        return jsonify(
+            metrics={
+                "Kalman Filter": {"RMSE": 0.0, "SNR": 0.0, "Latency": 0.0},
+                "Savitzky-Golay Filter": {"RMSE": 0.0, "SNR": 0.0, "Latency": 0.0},
+                "Butterworth Filter": {"RMSE": 0.0, "SNR": 0.0, "Latency": 0.0},
+            }
+        )
+
+    kalman_data, kalman_latency = smooth_angles_kalman(angles_over_time)
+    savgol_data, savgol_latency = smooth_angles_savgol(angles_over_time)
+    butterworth_data, butterworth_latency = smooth_angles_butterworth(angles_over_time)
 
     return jsonify(
         metrics={
             "Kalman Filter": {
                 "RMSE": calculate_rmse(angles_over_time, kalman_data),
                 "SNR": calculate_snr(angles_over_time, kalman_data),
-                "Latency": 0.01,
+                "Latency": kalman_latency,
             },
             "Savitzky-Golay Filter": {
                 "RMSE": calculate_rmse(angles_over_time, savgol_data),
                 "SNR": calculate_snr(angles_over_time, savgol_data),
-                "Latency": 0.002,
+                "Latency": round(savgol_latency, 6),
             },
             "Butterworth Filter": {
                 "RMSE": calculate_rmse(angles_over_time, butterworth_data),
                 "SNR": calculate_snr(angles_over_time, butterworth_data),
-                "Latency": 0.003,
+                "Latency": round(butterworth_latency, 6),
             },
         }
     )
@@ -202,4 +217,4 @@ def index():
     return render_template("index.html")
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=8080)
+    app.run(debug=True, host="0.0.0.0", port=8081)

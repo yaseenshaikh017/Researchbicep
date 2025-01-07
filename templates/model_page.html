@@ -99,17 +99,17 @@
                 .then(response => response.json())
                 .then(data => {
                     const metrics = data.metrics;
-                    document.getElementById('kalman-rmse').innerText = metrics['Kalman Filter'].RMSE.toFixed(3);
-                    document.getElementById('kalman-snr').innerText = metrics['Kalman Filter'].SNR.toFixed(2);
-                    document.getElementById('kalman-latency').innerText = metrics['Kalman Filter'].Latency.toFixed(3);
+                    document.getElementById('kalman-rmse').innerText = metrics['Kalman Filter'].RMSE.toFixed(6);
+                    document.getElementById('kalman-snr').innerText = metrics['Kalman Filter'].SNR.toFixed(6);
+                    document.getElementById('kalman-latency').innerText = metrics['Kalman Filter'].Latency.toFixed(6);
                     
-                    document.getElementById('savgol-rmse').innerText = metrics['Savitzky-Golay Filter'].RMSE.toFixed(3);
-                    document.getElementById('savgol-snr').innerText = metrics['Savitzky-Golay Filter'].SNR.toFixed(2);
-                    document.getElementById('savgol-latency').innerText = metrics['Savitzky-Golay Filter'].Latency.toFixed(3);
+                    document.getElementById('savgol-rmse').innerText = metrics['Savitzky-Golay Filter'].RMSE.toFixed(6);
+                    document.getElementById('savgol-snr').innerText = metrics['Savitzky-Golay Filter'].SNR.toFixed(6);
+                    document.getElementById('savgol-latency').innerText = metrics['Savitzky-Golay Filter'].Latency.toFixed(6);
                     
-                    document.getElementById('butterworth-rmse').innerText = metrics['Butterworth Filter'].RMSE.toFixed(3);
-                    document.getElementById('butterworth-snr').innerText = metrics['Butterworth Filter'].SNR.toFixed(2);
-                    document.getElementById('butterworth-latency').innerText = metrics['Butterworth Filter'].Latency.toFixed(3);
+                    document.getElementById('butterworth-rmse').innerText = metrics['Butterworth Filter'].RMSE.toFixed(6);
+                    document.getElementById('butterworth-snr').innerText = metrics['Butterworth Filter'].SNR.toFixed(6);
+                    document.getElementById('butterworth-latency').innerText = metrics['Butterworth Filter'].Latency.toFixed(6);
                 });
         }
 
